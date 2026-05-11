@@ -20,7 +20,6 @@ compile_commands.json
 *.sqlite3
 
 # Editor/OS
-.vscode/
 .idea/
 *.swp
 .DS_Store
