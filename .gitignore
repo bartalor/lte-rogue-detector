@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Build artifacts
+sniffer/build/
+build/
+*.o
+*.a
+compile_commands.json
+
+# Local databases (the migration is the source of truth; DBs are scratch)
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Editor/OS
+.vscode/
+.idea/
+*.swp
+.DS_Store

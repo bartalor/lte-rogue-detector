@@ -60,7 +60,15 @@ Each rule produces an alert with: severity score, offending message reference, a
 - **No live srsRAN / Open5GS stack in the committed demo.** The detector is validated against (a) real published srsRAN attach pcaps for the legitimate baseline, and (b) crafted attack pcaps for the rogue scenarios. The scenario runner is structured so a live srsRAN ZMQ stack could be wired in later, but the committed demo runs from pcaps for reproducibility. This is framed as a *feature* (reviewers run it without setup), not a hedge.
 - **Crafted pcaps use `pycrate`** (3GPP ASN.1 library) for wire-correct S1AP / NAS encoding. The project's contribution is the detector, not yet-another-S1AP-encoder.
 - **SQLite, not Postgres.** Single-file, embeddable from both C++ and Python, sufficient for the data volumes involved.
+- **Alembic for migrations.** Standard tool. Migrations are hand-written SQL via `op.execute()` / `op.create_table()`; no SQLAlchemy ORM models — the C++ sniffer writes the same DB directly via `sqlite3.h`, so an ORM would only be dead weight.
 - **C++17, CMake, GoogleTest.** Python 3.13 in the active pyenv venv. Pytest.
+
+## Deliberate JD coverage
+
+Two job-description bullets get explicit, visible coverage in the repo:
+
+- **"ניתוח ביצועים, Latency ו-Throughput"** — a timing layer on top of the message store: per-session inter-message latencies (Attach-Request → Authentication-Request → Security-Mode-Command → Attach-Complete), a session timing report (median, p95), and one analytical SQL query that exercises the `(session_id, ts)` index. Lives alongside the detection alerts, not as a separate component.
+- **"כלי רשת Linux: ip, iptables, ss, tcpdump"** — the scenario runner uses `ip netns` to isolate the "rogue eNB" / "legitimate eNB" / "core" into separate network namespaces, `ip link` veth pairs to wire them, `ss` to verify the SCTP listener before injecting, and `iptables` for one scenario that simulates a filtered path. The runner *demonstrates* Linux networking, not just orchestrates files.
 
 ## Scope discipline (non-negotiable)
 
