@@ -28,8 +28,9 @@ int run(const std::string& pcap_path, const std::string& db_path) {
         const std::uint64_t ts_us =
             static_cast<std::uint64_t>(hdr->ts.tv_sec) * 1'000'000ull +
             static_cast<std::uint64_t>(hdr->ts.tv_usec);
-        auto fields = sniffer::ingest_packet(linktype, data, hdr->caplen, ts_us);
-        if (fields) db.insert_message(*fields);
+        for (const auto& f : sniffer::ingest_packet(linktype, data, hdr->caplen, ts_us)) {
+            db.insert_message(f);
+        }
     }
 
     db.commit();
