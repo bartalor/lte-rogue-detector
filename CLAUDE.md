@@ -57,7 +57,7 @@ Each rule produces an alert with: severity score, offending message reference, a
 
 ## Decisions already made
 
-- **No live srsRAN / Open5GS stack in the committed demo.** The detector is validated against (a) real published srsRAN attach pcaps for the legitimate baseline, and (b) crafted attack pcaps for the rogue scenarios. The scenario runner is structured so a live srsRAN ZMQ stack could be wired in later, but the committed demo runs from pcaps for reproducibility. This is framed as a *feature* (reviewers run it without setup), not a hedge.
+- **No live srsRAN / Open5GS stack in the committed demo.** The detector is validated against (a) real published srsRAN attach pcaps for the legitimate baseline, and (b) crafted attack pcaps for the rogue scenarios. The scenario runner is structured so a live srsRAN ZMQ stack could be wired in later, but the committed demo runs from pcaps for reproducibility. This is framed as a *feature* (reviewers run it without setup), not a hedge. **Open option if time allows: build a local srsRAN + Open5GS ZMQ testbed and capture our own attack pcaps.**
 - **Crafted pcaps use `pycrate`** (3GPP ASN.1 library) for wire-correct S1AP / NAS encoding. The project's contribution is the detector, not yet-another-S1AP-encoder.
 - **SQLite, not Postgres.** Single-file, embeddable from both C++ and Python, sufficient for the data volumes involved.
 - **Alembic for migrations.** Standard tool. Migrations are hand-written SQL via `op.execute()` / `op.create_table()`; no SQLAlchemy ORM models — the C++ sniffer writes the same DB directly via `sqlite3.h`, so an ORM would only be dead weight.
