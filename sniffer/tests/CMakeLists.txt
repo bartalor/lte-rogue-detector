@@ -11,6 +11,7 @@ include(GoogleTest)
 
 add_executable(sniffer_tests
     test_bitreader.cpp
+    test_nas.cpp
 )
 target_link_libraries(sniffer_tests
     PRIVATE
