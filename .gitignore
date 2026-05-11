@@ -24,3 +24,6 @@ compile_commands.json
 .idea/
 *.swp
 .DS_Store
+
+# Third-party captures fetched on demand (see sample_pcaps/colte/README.md)
+sample_pcaps/colte/2_firstattach.pcap
