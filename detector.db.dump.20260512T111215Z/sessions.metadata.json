@@ -1,0 +1,15 @@
+{
+    "name": "sessions",
+    "columns": [
+        "session_id",
+        "cell_id",
+        "enb_ue_s1ap_id",
+        "mme_ue_s1ap_id",
+        "imsi",
+        "guti",
+        "tmsi",
+        "started_at",
+        "ended_at"
+    ],
+    "schema": "CREATE TABLE \"sessions\" (\n\tsession_id INTEGER NOT NULL, \n\tcell_id INTEGER, \n\tenb_ue_s1ap_id INTEGER NOT NULL, \n\tmme_ue_s1ap_id INTEGER, \n\timsi TEXT, \n\tguti TEXT, \n\ttmsi TEXT, \n\tstarted_at TEXT NOT NULL, \n\tended_at TEXT, \n\tPRIMARY KEY (session_id), \n\tCONSTRAINT uq_sessions_cell_enbueid_started UNIQUE (cell_id, enb_ue_s1ap_id, started_at), \n\tFOREIGN KEY(cell_id) REFERENCES cells (cell_id)\n)"
+}

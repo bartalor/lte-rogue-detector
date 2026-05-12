@@ -1,0 +1,13 @@
+{
+    "name": "cells",
+    "columns": [
+        "cell_id",
+        "plmn",
+        "enb_id",
+        "e_cgi",
+        "tac",
+        "first_seen",
+        "last_seen"
+    ],
+    "schema": "CREATE TABLE cells (\n\tcell_id INTEGER NOT NULL, \n\tplmn TEXT NOT NULL, \n\tenb_id INTEGER NOT NULL, \n\te_cgi INTEGER NOT NULL, \n\ttac INTEGER, \n\tfirst_seen TEXT NOT NULL, \n\tlast_seen TEXT NOT NULL, \n\tPRIMARY KEY (cell_id), \n\tCONSTRAINT uq_cells_plmn_ecgi UNIQUE (plmn, e_cgi)\n)"
+}

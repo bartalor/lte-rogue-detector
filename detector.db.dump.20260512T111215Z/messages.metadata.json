@@ -1,0 +1,21 @@
+{
+    "name": "messages",
+    "columns": [
+        "message_id",
+        "session_id",
+        "ts",
+        "direction",
+        "nas_msg_type",
+        "identity_type",
+        "eea_selected",
+        "eia_selected",
+        "ue_eea_caps",
+        "ue_eia_caps",
+        "emm_cause",
+        "raw_pcap_offset",
+        "raw_frame_number",
+        "enb_ue_s1ap_id",
+        "mme_ue_s1ap_id"
+    ],
+    "schema": "CREATE TABLE \"messages\" (\n\tmessage_id INTEGER NOT NULL, \n\tsession_id INTEGER, \n\tts TEXT NOT NULL, \n\tdirection TEXT NOT NULL, \n\tnas_msg_type TEXT NOT NULL, \n\tidentity_type TEXT, \n\teea_selected INTEGER, \n\teia_selected INTEGER, \n\tue_eea_caps INTEGER, \n\tue_eia_caps INTEGER, \n\temm_cause INTEGER, \n\traw_pcap_offset INTEGER, \n\traw_frame_number INTEGER, \n\tenb_ue_s1ap_id INTEGER, \n\tmme_ue_s1ap_id INTEGER, \n\tPRIMARY KEY (message_id), \n\tCONSTRAINT ck_messages_direction CHECK (direction IN ('UL', 'DL')), \n\tFOREIGN KEY(session_id) REFERENCES sessions (session_id)\n)"
+}

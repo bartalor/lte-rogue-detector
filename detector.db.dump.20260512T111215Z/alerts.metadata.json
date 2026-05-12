@@ -1,0 +1,13 @@
+{
+    "name": "alerts",
+    "columns": [
+        "alert_id",
+        "session_id",
+        "trigger_message_id",
+        "rule_name",
+        "severity",
+        "detail",
+        "created_at"
+    ],
+    "schema": "CREATE TABLE alerts (\n\talert_id INTEGER NOT NULL, \n\tsession_id INTEGER NOT NULL, \n\ttrigger_message_id INTEGER, \n\trule_name TEXT NOT NULL, \n\tseverity INTEGER NOT NULL, \n\tdetail TEXT, \n\tcreated_at TEXT DEFAULT (datetime('now')) NOT NULL, \n\tPRIMARY KEY (alert_id), \n\tCONSTRAINT ck_alerts_severity_range CHECK (severity BETWEEN 1 AND 10), \n\tFOREIGN KEY(session_id) REFERENCES sessions (session_id), \n\tFOREIGN KEY(trigger_message_id) REFERENCES messages (message_id)\n)"
+}

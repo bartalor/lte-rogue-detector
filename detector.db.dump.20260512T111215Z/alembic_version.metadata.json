@@ -1,0 +1,7 @@
+{
+    "name": "alembic_version",
+    "columns": [
+        "version_num"
+    ],
+    "schema": "CREATE TABLE alembic_version (\n\tversion_num VARCHAR(32) NOT NULL, \n\tCONSTRAINT alembic_version_pkc PRIMARY KEY (version_num)\n)"
+}
