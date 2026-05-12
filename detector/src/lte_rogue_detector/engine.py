@@ -23,7 +23,11 @@ def _load_sessions(conn: sqlite3.Connection) -> Iterable[Session]:
     ).fetchall()
     for s in sess_rows:
         msgs = conn.execute(
-            "SELECT * FROM messages WHERE session_id = ? ORDER BY ts, message_id",
+            "SELECT message_id, session_id, ts, direction, nas_msg_type,"
+            " identity_type, eea_selected, eia_selected, ue_eea_caps,"
+            " ue_eia_caps, emm_cause, enb_ue_s1ap_id, mme_ue_s1ap_id"
+            " FROM messages WHERE session_id = ?"
+            " ORDER BY ts, message_id",
             (s["session_id"],),
         ).fetchall()
         yield Session(

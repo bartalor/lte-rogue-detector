@@ -4,11 +4,6 @@ Usage:
     lte-rogue-detector sessionize <db>
     lte-rogue-detector run <db>          # sessionize then evaluate rules
     lte-rogue-detector alerts <db>       # print all alerts
-
-Designed for two modes:
-  * Historical: invoke `run` once after the sniffer finishes a pcap.
-  * Watch:      a future `watch` subcommand will tail messages and call
-                sessionize+run periodically; not implemented yet.
 """
 from __future__ import annotations
 
@@ -43,14 +38,14 @@ def _cmd_run(args: argparse.Namespace) -> int:
         f"rules: {e.sessions_evaluated} session(s) evaluated, "
         f"{e.alerts_inserted} alert(s)"
     )
-    return _print_alerts(args.db, only_new=False)
+    return _print_alerts(args.db)
 
 
 def _cmd_alerts(args: argparse.Namespace) -> int:
-    return _print_alerts(args.db, only_new=False)
+    return _print_alerts(args.db)
 
 
-def _print_alerts(db_path: str, only_new: bool) -> int:
+def _print_alerts(db_path: str) -> int:
     conn = connect(db_path)
     rows = conn.execute(
         """

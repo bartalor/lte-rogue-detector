@@ -101,4 +101,4 @@ def test_ended_at_set_to_last_message_ts(db):
     sessionize(db)
     row = db.execute("SELECT started_at, ended_at FROM sessions").fetchone()
     assert row["started_at"] == "2026-05-12T10:00:00.000000Z"
-    assert row["ended_at"] == "2026-05-12T10:00:05Z"
+    assert row["ended_at"] == "2026-05-12T10:00:05.000000Z"

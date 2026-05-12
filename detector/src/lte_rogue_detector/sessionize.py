@@ -38,6 +38,11 @@ def _parse_ts(ts: str) -> datetime:
     return datetime.fromisoformat(ts.replace("Z", "+00:00"))
 
 
+def _format_ts(t: datetime) -> str:
+    # Match the sniffer's wire shape: ISO 8601, always microseconds, trailing Z.
+    return t.strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+
 def sessionize(
     conn: sqlite3.Connection, gap: timedelta = DEFAULT_GAP
 ) -> SessionizeStats:
@@ -97,8 +102,7 @@ def sessionize(
         # Sessions can re-open with a fresh row if more messages arrive later
         # (gap > threshold), so this is a per-pass closure, not permanent.
         end_updates = [
-            (s[1].isoformat().replace("+00:00", "Z"), s[0])
-            for s in open_sessions.values()
+            (_format_ts(s[1]), s[0]) for s in open_sessions.values()
         ]
         conn.executemany(
             "UPDATE sessions SET ended_at = ? WHERE session_id = ?",
