@@ -11,11 +11,15 @@ description: Run an Alembic migration safely. Use BEFORE any `alembic upgrade`, 
 Before invoking `alembic upgrade` or `alembic downgrade` against any db
 that is not under `/tmp/` or an obvious throwaway path:
 
-1. Dump the db to a diffable directory:
+1. Dump the db to `db_dump/`:
 
    ```
-   sqlite-diffable dump <db_path> <db_path>.dump.<UTC-timestamp>/ --all
+   sqlite-diffable dump <db_path> db_dump/ --all
    ```
+
+   Always use the directory name `db_dump/`. Do not invent timestamped
+   or per-migration names; the snapshot is meant to be overwritten each
+   time, and git history is what preserves prior snapshots.
 
 2. **Commit the dump to git in its own commit, before running alembic.**
    A snapshot sitting untracked in the working tree is not a snapshot —
@@ -24,7 +28,7 @@ that is not under `/tmp/` or an obvious throwaway path:
    git history before the risky operation, not after.
 
    ```
-   git add <db_path>.dump.<ts>/
+   git add db_dump/
    git commit -m "Snapshot <db_path> before <revision>"
    ```
 
@@ -35,8 +39,11 @@ botched downgrade with no recoverable snapshot is hours.
 Restore later with:
 
 ```
-sqlite-diffable load <db_path>.restored <db_path>.dump.<ts>/
+sqlite-diffable load <db_path>.restored db_dump/
 ```
+
+To recover an older snapshot, `git checkout <commit> -- db_dump/` first,
+then run the load.
 
 ### 2. Always pass `-x db=<path>` explicitly
 Never rely on `alembic.ini`'s default `sqlalchemy.url`. Always specify
@@ -77,8 +84,8 @@ the dump taken in rule 1.
 
 ### 6. Order of operations (the checklist)
 1. Confirm target db path with the user.
-2. Dump: `sqlite-diffable dump <db> <db>.dump.<ts>/ --all`.
-3. **Commit the dump** (`git add <db>.dump.<ts>/ && git commit`). Do not
+2. Dump: `sqlite-diffable dump <db> db_dump/ --all`.
+3. **Commit the dump** (`git add db_dump/ && git commit`). Do not
    proceed to step 4 until the snapshot is in git history.
 4. Dry-run on `/tmp/<name>.db`.
 5. Apply to real db with explicit `-x db=`.
