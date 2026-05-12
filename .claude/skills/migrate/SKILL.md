@@ -7,17 +7,30 @@ description: Run an Alembic migration safely. Use BEFORE any `alembic upgrade`, 
 
 ## Rules
 
-### 1. NEVER migrate without a snapshot first
+### 1. NEVER migrate without a committed snapshot first
 Before invoking `alembic upgrade` or `alembic downgrade` against any db
-that is not under `/tmp/` or an obvious throwaway path, dump the db to
-a diffable directory:
+that is not under `/tmp/` or an obvious throwaway path:
 
-```
-sqlite-diffable dump <db_path> <db_path>.dump.<UTC-timestamp>/ --all
-```
+1. Dump the db to a diffable directory:
 
-No exceptions. Even for "harmless" migrations like `CREATE INDEX`. The
-cost of the dump is seconds; the cost of a botched downgrade is hours.
+   ```
+   sqlite-diffable dump <db_path> <db_path>.dump.<UTC-timestamp>/ --all
+   ```
+
+2. **Commit the dump to git in its own commit, before running alembic.**
+   A snapshot sitting untracked in the working tree is not a snapshot —
+   one `git clean -fd` or accidental `rm -rf` and it is gone. The whole
+   point of the dump is that it survives mistakes, so it has to live in
+   git history before the risky operation, not after.
+
+   ```
+   git add <db_path>.dump.<ts>/
+   git commit -m "Snapshot <db_path> before <revision>"
+   ```
+
+No exceptions on either step. Even for "harmless" migrations like
+`CREATE INDEX`. The cost of the dump+commit is seconds; the cost of a
+botched downgrade with no recoverable snapshot is hours.
 
 Restore later with:
 
@@ -65,8 +78,10 @@ the dump taken in rule 1.
 ### 6. Order of operations (the checklist)
 1. Confirm target db path with the user.
 2. Dump: `sqlite-diffable dump <db> <db>.dump.<ts>/ --all`.
-3. Dry-run on `/tmp/<name>.db`.
-4. Apply to real db with explicit `-x db=`.
-5. `alembic current` to confirm new revision.
-6. Schema/EXPLAIN check.
-7. Report what changed.
+3. **Commit the dump** (`git add <db>.dump.<ts>/ && git commit`). Do not
+   proceed to step 4 until the snapshot is in git history.
+4. Dry-run on `/tmp/<name>.db`.
+5. Apply to real db with explicit `-x db=`.
+6. `alembic current` to confirm new revision.
+7. Schema/EXPLAIN check.
+8. Report what changed.
