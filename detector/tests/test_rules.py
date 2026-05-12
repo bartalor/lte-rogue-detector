@@ -1,6 +1,4 @@
 """Rule + engine behaviour."""
-from __future__ import annotations
-
 from .conftest import insert_message
 from lte_rogue_detector.engine import run_rules
 from lte_rogue_detector.sessionize import sessionize

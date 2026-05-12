@@ -1,6 +1,4 @@
 """Run detection rules over every session and persist their alerts."""
-from __future__ import annotations
-
 import sqlite3
 from dataclasses import dataclass
 from typing import Iterable

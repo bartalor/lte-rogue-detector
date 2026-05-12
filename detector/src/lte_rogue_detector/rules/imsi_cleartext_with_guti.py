@@ -18,11 +18,9 @@ This rule flags exactly that. We can't tell from a single session whether
 the UE *had* a GUTI it could have used, so severity is medium (5). A
 follow-up rule that correlates across sessions can promote it to high.
 """
-from __future__ import annotations
-
 from typing import Iterable
 
-from .base import Alert, Rule, Session
+from .base import Alert, Session
 
 
 class ImsiCleartextWithGutiRule:

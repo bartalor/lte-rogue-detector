@@ -4,8 +4,6 @@ Centralises the two settings that matter for correctness: foreign-key
 enforcement (off by default in SQLite) and `row_factory` so rules read
 columns by name.
 """
-from __future__ import annotations
-
 import sqlite3
 from contextlib import contextmanager
 from typing import Iterator

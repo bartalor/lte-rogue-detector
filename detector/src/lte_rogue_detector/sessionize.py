@@ -14,8 +14,6 @@ The sessionizer is idempotent: it only looks at rows with `session_id IS
 NULL`, so re-running after the sniffer appends new rows just sessionizes
 the newcomers.
 """
-from __future__ import annotations
-
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta

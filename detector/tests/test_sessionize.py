@@ -1,6 +1,4 @@
 """Sessionizer behaviour."""
-from __future__ import annotations
-
 from .conftest import insert_message
 from lte_rogue_detector.sessionize import sessionize
 from datetime import timedelta

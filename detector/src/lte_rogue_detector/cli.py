@@ -5,8 +5,6 @@ Usage:
     lte-rogue-detector run <db>          # sessionize then evaluate rules
     lte-rogue-detector alerts <db>       # print all alerts
 """
-from __future__ import annotations
-
 import argparse
 import sys
 
