@@ -13,6 +13,7 @@ add_executable(sniffer_tests
     test_bitreader.cpp
     test_nas.cpp
     test_framing.cpp
+    test_s1ap.cpp
 )
 target_link_libraries(sniffer_tests
     PRIVATE
