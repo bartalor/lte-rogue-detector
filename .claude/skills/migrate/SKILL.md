@@ -45,35 +45,45 @@ sqlite-diffable load <db_path>.restored db_dump/
 To recover an older snapshot, `git checkout <commit> -- db_dump/` first,
 then run the load.
 
-### 2. Always pass `-x db=<path>` explicitly
-Never rely on `alembic.ini`'s default `sqlalchemy.url`. Always specify
-the target db on the command line so it's obvious which db is being
-touched. Example:
+### 2. Always pass `LTE_ROGUE_DB=<path>` explicitly
+This project's `alembic/env.py` reads the target db from the
+`LTE_ROGUE_DB` environment variable, **not** from alembic's `-x` flag.
+The `-x db=` flag is silently ignored — alembic falls back to
+`alembic.ini`'s default (`detector.db`). Never rely on the default.
+Always set the env var so it is obvious which db is being touched:
 
 ```
-alembic -x db=detector.db upgrade head
+LTE_ROGUE_DB=detector.db alembic upgrade head
 ```
 
 If the user hasn't told you which db to target, ask.
 
 ### 3. Verify migration syntax on a fresh throwaway db first
-Before touching the real db, run the full chain on `/tmp/<name>.db`:
+Before touching the real db, run the full chain on `/tmp/<name>.db`,
+and **confirm the override took effect** before trusting the result:
 
 ```
 rm -f /tmp/migtest.db
-alembic -x db=/tmp/migtest.db upgrade head
+LTE_ROGUE_DB=/tmp/migtest.db alembic current   # must be empty (no revision)
+LTE_ROGUE_DB=/tmp/migtest.db alembic upgrade head
+LTE_ROGUE_DB=/tmp/migtest.db alembic current   # must report new head
+ls -la /tmp/migtest.db                          # file must be non-zero size
 ```
 
-Confirm it completes cleanly. Only then proceed to the real db.
+If `alembic current` before the upgrade reports anything other than
+empty, the override was ignored and alembic is hitting the real db.
+Stop and investigate.
 
 ### 4. After applying, confirm the revision and the schema change
 ```
-alembic -x db=<path> current
+LTE_ROGUE_DB=<path> alembic current
 sqlite3 <path> "<EXPLAIN or schema-check query>"
 ```
 
 If the change is an index, run `EXPLAIN QUERY PLAN` against a
-representative query to confirm SQLite actually uses it.
+representative query to confirm SQLite actually uses it. (Note: a
+partial index only gets picked when matching rows exist; if the
+predicate matches zero rows the planner correctly skips it.)
 
 ### 5. If a downgrade fails mid-batch
 Stop. Do not retry with `--sql` or `-x` tricks. Investigate the error
@@ -87,8 +97,9 @@ the dump taken in rule 1.
 2. Dump: `sqlite-diffable dump <db> db_dump/ --all`.
 3. **Commit the dump** (`git add db_dump/ && git commit`). Do not
    proceed to step 4 until the snapshot is in git history.
-4. Dry-run on `/tmp/<name>.db`.
-5. Apply to real db with explicit `-x db=`.
-6. `alembic current` to confirm new revision.
+4. Dry-run on `/tmp/<name>.db` with `LTE_ROGUE_DB=/tmp/<name>.db`,
+   verifying the override took effect (see rule 3).
+5. Apply to real db with `LTE_ROGUE_DB=<path>`.
+6. `LTE_ROGUE_DB=<path> alembic current` to confirm new revision.
 7. Schema/EXPLAIN check.
 8. Report what changed.
