@@ -55,14 +55,13 @@ private:
 };
 
 // Encode one ProtocolIE-Field carrying an INTEGER value (eNB-UE-S1AP-ID, etc.).
-// Open-type value is: 1 length octet + big-endian integer octets.
+// Open-type value is the big-endian integer octets directly (no inner length).
 std::vector<std::uint8_t> encode_int_ie(std::uint16_t ie_id, std::uint32_t value,
                                         std::size_t value_bytes) {
     BitWriter w;
     w.put_u16_be(ie_id);
     w.put_bits(0, 2);  // criticality
     std::vector<std::uint8_t> open;
-    open.push_back(static_cast<std::uint8_t>(value_bytes));
     for (std::size_t i = 0; i < value_bytes; ++i) {
         const std::size_t shift = (value_bytes - 1 - i) * 8;
         open.push_back(static_cast<std::uint8_t>((value >> shift) & 0xff));
@@ -76,8 +75,12 @@ std::vector<std::uint8_t> encode_nas_ie(const std::vector<std::uint8_t>& nas) {
     BitWriter w;
     w.put_u16_be(26);  // NAS-PDU
     w.put_bits(0, 2);  // criticality
-    w.put_len_short(static_cast<std::uint32_t>(nas.size()));
-    w.put_octets(nas);
+    // Open-type value: 1 APER length octet for the OCTET STRING, then octets.
+    std::vector<std::uint8_t> open;
+    open.push_back(static_cast<std::uint8_t>(nas.size()));
+    open.insert(open.end(), nas.begin(), nas.end());
+    w.put_len_short(static_cast<std::uint32_t>(open.size()));
+    w.put_octets(open);
     return w.data();
 }
 
@@ -86,13 +89,15 @@ std::vector<std::uint8_t> encode_nas_ie(const std::vector<std::uint8_t>& nas) {
 std::vector<std::uint8_t> encode_initiating_message(
     std::uint8_t procedure_code,
     const std::vector<std::vector<std::uint8_t>>& ies) {
-    // ProtocolIE-Container: count (u16) then concatenated IE fields.
-    std::vector<std::uint8_t> container;
-    container.push_back(static_cast<std::uint8_t>(ies.size() >> 8));
-    container.push_back(static_cast<std::uint8_t>(ies.size() & 0xff));
-    for (const auto& ie : ies) {
-        container.insert(container.end(), ie.begin(), ie.end());
-    }
+    // The procedure body (e.g. InitialUEMessage) is an extensible SEQUENCE
+    // wrapping the ProtocolIE-Container, so APER prepends a 1-bit extension
+    // marker. After the marker we align before the count.
+    BitWriter body;
+    body.put_bits(0, 1);  // procedure-body extension marker
+    body.align();
+    body.put_u16_be(static_cast<std::uint16_t>(ies.size()));
+    for (const auto& ie : ies) body.put_octets(ie);
+    const std::vector<std::uint8_t>& container = body.data();
 
     BitWriter w;
     w.put_bits(0, 1);  // S1AP-PDU extension bit

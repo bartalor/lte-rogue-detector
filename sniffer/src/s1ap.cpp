@@ -96,6 +96,11 @@ void parse_ie(std::uint32_t ie_id, ByteSpan value, S1apPeel& peel) {
 // }
 void parse_ie_container(BitReader& br, S1apPeel& peel,
                         const std::uint8_t* base, std::size_t base_len) {
+    // The procedure body (e.g. InitialUEMessage, DownlinkNASTransport) is an
+    // extensible SEQUENCE wrapping the ProtocolIE-Container. APER prepends a
+    // 1-bit extension marker before the SEQUENCE root; consume it and then
+    // align to the byte boundary that precedes the container's count field.
+    br.read_bits(1);
     br.align_to_byte();
     const std::uint32_t count = read_uint(br, 16);
     for (std::uint32_t i = 0; i < count; ++i) {
@@ -104,16 +109,15 @@ void parse_ie_container(BitReader& br, S1apPeel& peel,
         const std::uint32_t value_len = read_length_determinant(br);
         ByteSpan value = read_octet_span(br, base, base_len, value_len);
 
-        // For NAS-PDU (OCTET STRING) the open-type value is the octets directly,
-        // but most other IEs wrap an APER-encoded type inside their length-
-        // prefixed open type. For the integer IEs we care about, the open-type
-        // payload is itself an APER-encoded INTEGER: one length octet followed
-        // by big-endian octets. Peel that prefix for the integer IEs.
-        if (ie_id == kIeEnbUeS1apId || ie_id == kIeMmeUeS1apId) {
+        // The IE's open-type already gave us the exact byte count of the
+        // encoded value. For NAS-PDU (OCTET STRING) the value is one APER
+        // length octet followed by the NAS bytes; for the INTEGER IEs the
+        // value is the big-endian integer octets directly.
+        if (ie_id == kIeNasPdu) {
             if (value.len < 1) continue;
-            const std::uint8_t int_len = value.data[0];
-            if (int_len == 0 || std::size_t{int_len} + 1u > value.len) continue;
-            parse_ie(ie_id, ByteSpan{value.data + 1, int_len}, peel);
+            const std::uint8_t inner_len = value.data[0];
+            if (inner_len == 0 || std::size_t{inner_len} + 1u > value.len) continue;
+            parse_ie(ie_id, ByteSpan{value.data + 1, inner_len}, peel);
         } else {
             parse_ie(ie_id, value, peel);
         }
