@@ -70,14 +70,6 @@ Two job-description bullets get explicit, visible coverage in the repo:
 - **"ניתוח ביצועים, Latency ו-Throughput"** — a timing layer on top of the message store: per-session inter-message latencies (Attach-Request → Authentication-Request → Security-Mode-Command → Attach-Complete), a session timing report (median, p95), and one analytical SQL query that exercises the `(session_id, ts)` index. Lives alongside the detection alerts, not as a separate component.
 - **"כלי רשת Linux: ip, iptables, ss, tcpdump"** — the scenario runner uses `ip netns` to isolate the "rogue eNB" / "legitimate eNB" / "core" into separate network namespaces, `ip link` veth pairs to wire them, `ss` to verify the SCTP listener before injecting, and `iptables` for one scenario that simulates a filtered path. The runner *demonstrates* Linux networking, not just orchestrates files.
 
-## Scope discipline (non-negotiable)
-
-- The C++ sniffer decodes **only** the message types the rules need. Not every S1AP IE.
-- The schema is correct for the **current** rules and queryable. Not future-proof.
-- The scenario runner has no GUI.
-- No speculative abstractions, no "in case we add X later" hooks, no half-finished features.
-- Comments only where the *why* is non-obvious. Names carry the *what*.
-
 ## Honest limitations (acknowledge, don't hide)
 
 - No real RF measurement. PHY metrics (RSRP, SINR, CQI) that srsRAN reports are exposed and logged if available, but no spectrum is sampled. The README states this plainly.
@@ -97,16 +89,3 @@ Two job-description bullets get explicit, visible coverage in the repo:
 - `ctest --test-dir sniffer/build` must pass.
 - The demo command (single command, name TBD) runs the IMSI catcher scenario end-to-end and prints the alerts to stdout.
 
-## What goes in the README
-
-- What the project is and the threat model it addresses
-- Architecture diagram (ASCII is fine)
-- How to reproduce each scenario (single command per scenario)
-- One full end-to-end rule walkthrough: signaling sequence on the wire → C++ extractor → Python rule → resulting SQL row
-- Honest "what this doesn't do" section
-
-## Style
-
-- No emojis anywhere unless explicitly asked.
-- No marketing language. Professional, factual, technically precise.
-- File references in conversation use `[path](path)` or `[path:line](path#Lline)` markdown.
