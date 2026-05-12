@@ -39,10 +39,6 @@ def _cmd_run(args: argparse.Namespace) -> int:
     return _print_alerts(args.db)
 
 
-def _cmd_alerts(args: argparse.Namespace) -> int:
-    return _print_alerts(args.db)
-
-
 def _print_alerts(db_path: str) -> int:
     conn = connect(db_path)
     rows = conn.execute(
@@ -74,17 +70,23 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lte-rogue-detector")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    for name, fn in [
-        ("sessionize", _cmd_sessionize),
-        ("run", _cmd_run),
-        ("alerts", _cmd_alerts),
-    ]:
-        sp = sub.add_parser(name)
-        sp.add_argument("db", help="path to SQLite database")
-        sp.set_defaults(func=fn)
+    sp_sessionize = sub.add_parser("sessionize")
+    sp_sessionize.add_argument("db", help="path to SQLite database")
+
+    sp_run = sub.add_parser("run")
+    sp_run.add_argument("db", help="path to SQLite database")
+
+    sp_alerts = sub.add_parser("alerts")
+    sp_alerts.add_argument("db", help="path to SQLite database")
 
     args = p.parse_args(argv)
-    return args.func(args)
+    match args.cmd:
+        case "sessionize":
+            return _cmd_sessionize(args)
+        case "run":
+            return _cmd_run(args)
+        case "alerts":
+            return _print_alerts(args.db)
 
 
 if __name__ == "__main__":
