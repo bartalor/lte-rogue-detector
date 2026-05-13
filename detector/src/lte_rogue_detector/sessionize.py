@@ -73,15 +73,15 @@ def sessionize(
                 continue
 
             ts = _parse_ts(r["ts"])
-            open_ = open_sessions.get(enb_id)
+            current_session = open_sessions.get(enb_id)
             reuse = (
-                open_ is not None
-                and not open_.closed_by_detach
-                and ts - open_.last_ts <= gap
+                current_session is not None
+                and not current_session.closed_by_detach
+                and ts - current_session.last_ts <= gap
             )
 
             if reuse:
-                session_id = open_.session_id
+                session_id = current_session.session_id
             else:
                 cur = conn.execute(
                     "INSERT INTO sessions (enb_ue_s1ap_id, started_at)"
