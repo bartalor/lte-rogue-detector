@@ -17,7 +17,7 @@ the newcomers.
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
+from typing import NamedTuple, Optional
 
 from .db import transaction
 
@@ -57,8 +57,12 @@ def sessionize(
     if not rows:
         return stats
 
-    # Per-enb-id current open session: (session_id, last_ts, closed_by_detach).
-    open_sessions: dict[int, tuple[int, datetime, bool]] = {}
+    class OpenSession(NamedTuple):
+        session_id: int
+        last_ts: datetime
+        closed_by_detach: bool
+
+    open_sessions: dict[int, OpenSession] = {}
     assignments: list[tuple[int, int]] = []  # (session_id, message_id)
 
     with transaction(conn):
@@ -72,12 +76,12 @@ def sessionize(
             open_ = open_sessions.get(enb_id)
             reuse = (
                 open_ is not None
-                and not open_[2]
-                and ts - open_[1] <= gap
+                and not open_.closed_by_detach
+                and ts - open_.last_ts <= gap
             )
 
             if reuse:
-                session_id = open_[0]
+                session_id = open_.session_id
             else:
                 cur = conn.execute(
                     "INSERT INTO sessions (enb_ue_s1ap_id, started_at)"
@@ -88,7 +92,7 @@ def sessionize(
                 stats.sessions_created += 1
 
             closed = r["nas_msg_type"] == "DetachRequest"
-            open_sessions[enb_id] = (session_id, ts, closed)
+            open_sessions[enb_id] = OpenSession(session_id, ts, closed)
             assignments.append((session_id, r["message_id"]))
             stats.messages_assigned += 1
 
@@ -100,7 +104,7 @@ def sessionize(
         # Sessions can re-open with a fresh row if more messages arrive later
         # (gap > threshold), so this is a per-pass closure, not permanent.
         end_updates = [
-            (_format_ts(s[1]), s[0]) for s in open_sessions.values()
+            (_format_ts(s.last_ts), s.session_id) for s in open_sessions.values()
         ]
         conn.executemany(
             "UPDATE sessions SET ended_at = ? WHERE session_id = ?",
