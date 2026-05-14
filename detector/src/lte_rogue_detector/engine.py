@@ -1,6 +1,7 @@
 """Run detection rules over every session and persist their alerts."""
 import sqlite3
 from dataclasses import dataclass
+from itertools import groupby
 from typing import Iterable
 
 from .db import transaction
@@ -15,25 +16,29 @@ class EngineStats:
 
 
 def _load_sessions(conn: sqlite3.Connection) -> Iterable[Session]:
-    sess_rows = conn.execute(
-        "SELECT session_id, enb_ue_s1ap_id, mme_ue_s1ap_id, started_at, ended_at"
-        " FROM sessions ORDER BY started_at, session_id"
+    # One round-trip: sessions LEFT JOIN messages, grouped in Python.
+    rows = conn.execute(
+        "SELECT s.session_id AS s_session_id,"
+        " s.enb_ue_s1ap_id AS s_enb_ue_s1ap_id,"
+        " s.mme_ue_s1ap_id AS s_mme_ue_s1ap_id,"
+        " s.started_at AS s_started_at,"
+        " s.ended_at AS s_ended_at,"
+        " m.message_id, m.session_id, m.ts, m.direction, m.nas_msg_type,"
+        " m.identity_type, m.eea_selected, m.eia_selected, m.ue_eea_caps,"
+        " m.ue_eia_caps, m.emm_cause, m.enb_ue_s1ap_id, m.mme_ue_s1ap_id"
+        " FROM sessions s LEFT JOIN messages m USING (session_id)"
+        " ORDER BY s.started_at, s.session_id, m.ts, m.message_id"
     ).fetchall()
-    for s in sess_rows:
-        msgs = conn.execute(
-            "SELECT message_id, session_id, ts, direction, nas_msg_type,"
-            " identity_type, eea_selected, eia_selected, ue_eea_caps,"
-            " ue_eia_caps, emm_cause, enb_ue_s1ap_id, mme_ue_s1ap_id"
-            " FROM messages WHERE session_id = ?"
-            " ORDER BY ts, message_id",
-            (s["session_id"],),
-        ).fetchall()
+    for _, group in groupby(rows, key=lambda r: r["s_session_id"]):
+        group = list(group)
+        head = group[0]
+        msgs = [r for r in group if r["message_id"] is not None]
         yield Session(
-            session_id=s["session_id"],
-            enb_ue_s1ap_id=s["enb_ue_s1ap_id"],
-            mme_ue_s1ap_id=s["mme_ue_s1ap_id"],
-            started_at=s["started_at"],
-            ended_at=s["ended_at"],
+            session_id=head["s_session_id"],
+            enb_ue_s1ap_id=head["s_enb_ue_s1ap_id"],
+            mme_ue_s1ap_id=head["s_mme_ue_s1ap_id"],
+            started_at=head["s_started_at"],
+            ended_at=head["s_ended_at"],
             messages=msgs,
         )
 
