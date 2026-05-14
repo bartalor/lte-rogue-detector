@@ -1,15 +1,13 @@
 """Rule + engine behaviour."""
 from .conftest import insert_message
-from lte_rogue_detector.engine import run_rules
-from lte_rogue_detector.sessionize import sessionize
+from lte_rogue_detector.engine import process_stream
 
 
 def test_imsi_cleartext_attach_fires(db):
     insert_message(db, ts="2026-05-12T10:00:00.000000Z", direction="UL",
                    nas_msg_type="AttachRequest", identity_type="IMSI",
                    enb_ue_s1ap_id=1)
-    sessionize(db)
-    stats = run_rules(db)
+    stats = process_stream(db)
     assert stats.alerts_inserted == 1
     a = db.execute("SELECT rule_name, severity FROM alerts").fetchone()
     assert a["rule_name"] == "imsi_cleartext_attach"
@@ -20,8 +18,7 @@ def test_imsi_cleartext_quiet_when_guti_used(db):
     insert_message(db, ts="2026-05-12T10:00:00.000000Z", direction="UL",
                    nas_msg_type="AttachRequest", identity_type="GUTI",
                    enb_ue_s1ap_id=1)
-    sessionize(db)
-    stats = run_rules(db)
+    stats = process_stream(db)
     assert stats.alerts_inserted == 0
 
 
@@ -29,8 +26,7 @@ def test_alert_links_to_trigger_message(db):
     m1 = insert_message(db, ts="2026-05-12T10:00:00.000000Z", direction="UL",
                        nas_msg_type="AttachRequest", identity_type="IMSI",
                        enb_ue_s1ap_id=1)
-    sessionize(db)
-    run_rules(db)
+    process_stream(db)
     a = db.execute(
         "SELECT trigger_message_id FROM alerts"
         " WHERE rule_name = 'imsi_cleartext_attach'"
@@ -55,8 +51,7 @@ def test_aka_skipped_fires_when_smc_without_auth(db):
     _attach(db, ts="2026-05-12T10:00:00.000000Z")
     smc = insert_message(db, ts="2026-05-12T10:00:00.100000Z", direction="DL",
                          nas_msg_type="SecurityModeCommand", enb_ue_s1ap_id=1)
-    sessionize(db)
-    run_rules(db)
+    process_stream(db)
     rows = _aka_alerts(db)
     assert len(rows) == 1
     assert rows[0]["severity"] == 8
@@ -67,8 +62,7 @@ def test_aka_skipped_fires_when_attach_accept_without_auth(db):
     _attach(db, ts="2026-05-12T10:00:00.000000Z")
     aa = insert_message(db, ts="2026-05-12T10:00:00.200000Z", direction="DL",
                         nas_msg_type="AttachAccept", enb_ue_s1ap_id=1)
-    sessionize(db)
-    run_rules(db)
+    process_stream(db)
     rows = _aka_alerts(db)
     assert len(rows) == 1 and rows[0]["trigger_message_id"] == aa
 
@@ -82,8 +76,7 @@ def test_aka_failure_then_continued_fires(db):
                           enb_ue_s1ap_id=1, emm_cause=20)
     insert_message(db, ts="2026-05-12T10:00:00.100000Z", direction="DL",
                    nas_msg_type="SecurityModeCommand", enb_ue_s1ap_id=1)
-    sessionize(db)
-    run_rules(db)
+    process_stream(db)
     rows = _aka_alerts(db)
     assert len(rows) == 1
     assert rows[0]["trigger_message_id"] == fail
@@ -96,8 +89,7 @@ def test_aka_request_without_response_fires(db):
                    nas_msg_type="AuthenticationRequest", enb_ue_s1ap_id=1)
     smc = insert_message(db, ts="2026-05-12T10:00:00.100000Z", direction="DL",
                          nas_msg_type="SecurityModeCommand", enb_ue_s1ap_id=1)
-    sessionize(db)
-    run_rules(db)
+    process_stream(db)
     rows = _aka_alerts(db)
     assert len(rows) == 1 and rows[0]["trigger_message_id"] == smc
 
@@ -110,8 +102,7 @@ def test_aka_completed_is_quiet(db):
                    nas_msg_type="AuthenticationResponse", enb_ue_s1ap_id=1)
     insert_message(db, ts="2026-05-12T10:00:00.100000Z", direction="DL",
                    nas_msg_type="SecurityModeCommand", enb_ue_s1ap_id=1)
-    sessionize(db)
-    run_rules(db)
+    process_stream(db)
     assert _aka_alerts(db) == []
 
 
@@ -120,6 +111,5 @@ def test_aka_rule_ignores_tau_only_session(db):
                    nas_msg_type="TrackingAreaUpdateRequest", enb_ue_s1ap_id=1)
     insert_message(db, ts="2026-05-12T10:00:00.100000Z", direction="DL",
                    nas_msg_type="SecurityModeCommand", enb_ue_s1ap_id=1)
-    sessionize(db)
-    run_rules(db)
+    process_stream(db)
     assert _aka_alerts(db) == []

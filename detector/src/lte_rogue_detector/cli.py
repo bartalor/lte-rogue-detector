@@ -1,40 +1,23 @@
 """Command-line entrypoint for the detector.
 
 Usage:
-    lte-rogue-detector sessionize <db>
-    lte-rogue-detector run <db>          # sessionize then evaluate rules
+    lte-rogue-detector run <db>          # stream all unassigned messages
     lte-rogue-detector alerts <db>       # print all alerts
 """
 import argparse
 import sys
 
 from .db import connect
-from .engine import run_rules
-from .sessionize import sessionize
-
-
-def _cmd_sessionize(args: argparse.Namespace) -> int:
-    conn = connect(args.db)
-    stats = sessionize(conn)
-    print(
-        f"sessionize: {stats.sessions_created} session(s), "
-        f"{stats.messages_assigned} message(s) assigned, "
-        f"{stats.messages_skipped_no_enb_id} skipped (no eNB ID)"
-    )
-    return 0
+from .engine import process_stream
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
     conn = connect(args.db)
-    s = sessionize(conn)
+    s = process_stream(conn)
     print(
-        f"sessionize: {s.sessions_created} session(s), "
-        f"{s.messages_assigned} message(s) assigned"
-    )
-    e = run_rules(conn)
-    print(
-        f"rules: {e.sessions_evaluated} session(s) evaluated, "
-        f"{e.alerts_inserted} alert(s)"
+        f"stream: {s.sessions_created} session(s), "
+        f"{s.messages_assigned} message(s) assigned, "
+        f"{s.alerts_inserted} alert(s)"
     )
     return _print_alerts(args.db)
 
@@ -70,9 +53,6 @@ def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(prog="lte-rogue-detector")
     sub = p.add_subparsers(dest="cmd", required=True)
 
-    sp_sessionize = sub.add_parser("sessionize")
-    sp_sessionize.add_argument("db", help="path to SQLite database")
-
     sp_run = sub.add_parser("run")
     sp_run.add_argument("db", help="path to SQLite database")
 
@@ -81,8 +61,6 @@ def main(argv: list[str] | None = None) -> int:
 
     args = p.parse_args(argv)
     match args.cmd:
-        case "sessionize":
-            return _cmd_sessionize(args)
         case "run":
             return _cmd_run(args)
         case "alerts":

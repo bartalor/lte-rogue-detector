@@ -25,9 +25,10 @@ real network.
 Severity 8: skipping mutual auth is a much stronger signal than IMSI
 disclosure (rule 1, severity 5), which has benign explanations.
 """
-from typing import Iterable
+import sqlite3
+from typing import Any, Iterable
 
-from .base import Alert, Session
+from .base import Alert
 
 
 # NAS messages that mark "the procedure moved past authentication".
@@ -40,57 +41,70 @@ class AkaSkippedOrFailedRule:
     name = "aka_skipped_or_failed"
     severity = 8
 
-    def evaluate(self, session: Session) -> Iterable[Alert]:
-        # We only judge sessions that actually started an attach. TAU-only
-        # sessions can legitimately reuse an existing security context and
-        # skip AKA; flagging them would be a false positive.
-        if not any(m["nas_msg_type"] == "AttachRequest" for m in session.messages):
+    def observe(
+        self, msg: sqlite3.Row, state: dict[str, Any]
+    ) -> Iterable[Alert]:
+        if state.get("fired"):
             return
 
-        auth_req: dict | None = None
-        auth_completed = False
-        auth_failure_msg: dict | None = None
+        t = msg["nas_msg_type"]
 
-        for m in session.messages:
-            t = m["nas_msg_type"]
-            if t == "AuthenticationRequest":
-                auth_req = m
-                auth_completed = False
-                auth_failure_msg = None
-            elif t == "AuthenticationResponse" and auth_req is not None:
-                auth_completed = True
-            elif t == "AuthenticationFailure" and auth_req is not None:
-                auth_failure_msg = m
-            elif t in _POST_AUTH and not auth_completed:
-                if auth_req is None:
-                    yield Alert(
-                        rule_name=self.name,
-                        severity=self.severity,
-                        trigger_message_id=m["message_id"],
-                        detail=(
-                            f"{t} reached without any AuthenticationRequest;"
-                            " EPS-AKA was skipped entirely"
-                        ),
-                    )
-                elif auth_failure_msg is not None:
-                    cause = auth_failure_msg["emm_cause"]
-                    yield Alert(
-                        rule_name=self.name,
-                        severity=self.severity,
-                        trigger_message_id=auth_failure_msg["message_id"],
-                        detail=(
-                            f"AuthenticationFailure (EMM cause {cause}) but"
-                            f" procedure continued to {t}; AKA did not complete"
-                        ),
-                    )
-                else:
-                    yield Alert(
-                        rule_name=self.name,
-                        severity=self.severity,
-                        trigger_message_id=m["message_id"],
-                        detail=(
-                            f"{t} reached without AuthenticationResponse;"
-                            " AKA challenge was issued but never answered"
-                        ),
-                    )
-                return
+        if t == "AttachRequest":
+            state["attach_seen"] = True
+            return
+
+        # Without an AttachRequest we don't judge — TAU-only sessions can
+        # legitimately reuse an existing security context and skip AKA.
+        if not state.get("attach_seen"):
+            return
+
+        if t == "AuthenticationRequest":
+            state["auth_req"] = msg
+            state["auth_completed"] = False
+            state["auth_failure_msg"] = None
+            return
+        if t == "AuthenticationResponse" and state.get("auth_req") is not None:
+            state["auth_completed"] = True
+            return
+        if t == "AuthenticationFailure" and state.get("auth_req") is not None:
+            state["auth_failure_msg"] = msg
+            return
+
+        if t in _POST_AUTH and not state.get("auth_completed"):
+            state["fired"] = True
+            auth_req = state.get("auth_req")
+            failure = state.get("auth_failure_msg")
+            if auth_req is None:
+                yield Alert(
+                    rule_name=self.name,
+                    severity=self.severity,
+                    trigger_message_id=msg["message_id"],
+                    detail=(
+                        f"{t} reached without any AuthenticationRequest;"
+                        " EPS-AKA was skipped entirely"
+                    ),
+                )
+            elif failure is not None:
+                cause = failure["emm_cause"]
+                yield Alert(
+                    rule_name=self.name,
+                    severity=self.severity,
+                    trigger_message_id=failure["message_id"],
+                    detail=(
+                        f"AuthenticationFailure (EMM cause {cause}) but"
+                        f" procedure continued to {t}; AKA did not complete"
+                    ),
+                )
+            else:
+                yield Alert(
+                    rule_name=self.name,
+                    severity=self.severity,
+                    trigger_message_id=msg["message_id"],
+                    detail=(
+                        f"{t} reached without AuthenticationResponse;"
+                        " AKA challenge was issued but never answered"
+                    ),
+                )
+
+    def on_session_close(self, state: dict[str, Any]) -> Iterable[Alert]:
+        return ()

@@ -1,18 +1,13 @@
-"""Rule interface shared by all detection rules."""
+"""Rule interface shared by all detection rules.
+
+Rules are streaming consumers: the engine feeds them one message at a time
+in ts order, scoped to a single session, and tells them when the session
+closes. Each rule gets its own per-session `state` dict to carry whatever
+it needs across messages — the engine never inspects it.
+"""
 import sqlite3
 from dataclasses import dataclass
-from typing import Iterable, Protocol
-
-
-@dataclass(frozen=True)
-class Session:
-    session_id: int
-    enb_ue_s1ap_id: int
-    mme_ue_s1ap_id: int | None
-    started_at: str
-    ended_at: str | None
-    # Messages for the session, ordered by ts. Each is a sqlite3.Row.
-    messages: list[sqlite3.Row]
+from typing import Any, Iterable, Protocol
 
 
 @dataclass(frozen=True)
@@ -23,8 +18,14 @@ class Alert:
     detail: str
 
 
-class Rule(Protocol):
+class StreamingRule(Protocol):
     name: str
     severity: int
 
-    def evaluate(self, session: Session) -> Iterable[Alert]: ...
+    def observe(
+        self, msg: sqlite3.Row, state: dict[str, Any]
+    ) -> Iterable[Alert]: ...
+
+    def on_session_close(
+        self, state: dict[str, Any]
+    ) -> Iterable[Alert]: ...
