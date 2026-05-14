@@ -17,12 +17,19 @@ the newcomers.
 import sqlite3
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import NamedTuple, Optional
+from typing import NamedTuple, Optional, TypedDict
 
 from .db import transaction
 
 
 DEFAULT_GAP = timedelta(seconds=30)
+
+
+class MessageRow(TypedDict):
+    message_id: int
+    ts: str
+    nas_msg_type: str
+    enb_ue_s1ap_id: Optional[int]
 
 
 @dataclass
@@ -44,7 +51,7 @@ def _format_ts(t: datetime) -> str:
 def sessionize(
     conn: sqlite3.Connection, gap: timedelta = DEFAULT_GAP
 ) -> SessionizeStats:
-    rows = conn.execute(
+    rows: list[MessageRow] = conn.execute(
         """
         SELECT message_id, ts, nas_msg_type, enb_ue_s1ap_id
         FROM messages
@@ -67,7 +74,7 @@ def sessionize(
 
     with transaction(conn):
         for r in rows:
-            enb_id: Optional[int] = r["enb_ue_s1ap_id"]
+            enb_id = r["enb_ue_s1ap_id"]
             if enb_id is None:
                 stats.messages_skipped_no_enb_id += 1
                 continue
