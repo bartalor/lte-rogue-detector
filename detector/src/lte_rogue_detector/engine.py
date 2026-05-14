@@ -68,11 +68,11 @@ class _Sessionizer:
     def __init__(self, conn: sqlite3.Connection, gap: timedelta) -> None:
         self._conn = conn
         self._gap = gap
-        self._open: dict[int, _OpenSession] = {}
+        self._open_sessions: dict[int, _OpenSession] = {}
 
     def step(self, row: sqlite3.Row, ts: datetime) -> _SessionEvent:
         enb_id = row["enb_ue_s1ap_id"]
-        current = self._open.get(enb_id)
+        current = self._open_sessions.get(enb_id)
         reuse = (
             current is not None
             and not current.closed_by_detach
@@ -82,29 +82,28 @@ class _Sessionizer:
         closed_id: int | None = None
         if current is not None and not reuse:
             closed_id = current.session_id
-            del self._open[enb_id]
+            del self._open_sessions[enb_id]
 
         if reuse:
             session_id = current.session_id
             opened = False
         else:
-            session_id = self._insert_session(enb_id, row["ts"])
+            cur = self._conn.execute(
+                "INSERT INTO sessions (enb_ue_s1ap_id, started_at) VALUES (?, ?)",
+                (enb_id, row["ts"]),
+            )
+            session_id = cur.lastrowid
             opened = True
 
         closed_by_detach = row["nas_msg_type"] == "DetachRequest"
-        self._open[enb_id] = _OpenSession(session_id, ts, closed_by_detach)
+        self._open_sessions[enb_id] = _OpenSession(session_id, ts, closed_by_detach)
         return _SessionEvent(session_id, closed_id, opened)
 
-    def drain(self) -> Iterator[int]:
-        for enb_id in list(self._open.keys()):
-            yield self._open.pop(enb_id).session_id
+    def drain(self) -> list[int]:
+        ids = [s.session_id for s in self._open_sessions.values()]
+        self._open_sessions.clear()
+        return ids
 
-    def _insert_session(self, enb_id: int, started_at: str) -> int:
-        cur = self._conn.execute(
-            "INSERT INTO sessions (enb_ue_s1ap_id, started_at) VALUES (?, ?)",
-            (enb_id, started_at),
-        )
-        return cur.lastrowid
 
 
 @dataclass
