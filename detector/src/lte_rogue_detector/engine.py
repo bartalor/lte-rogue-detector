@@ -22,7 +22,7 @@ from typing import Any, Iterable, Iterator, NamedTuple
 
 from .db import transaction
 from .rules import ALL_RULES
-from .rules.base import Alert, StreamingRule
+from .rules.base import Alert, MessageRow, StreamingRule
 
 
 DEFAULT_GAP = timedelta(seconds=30)
@@ -70,7 +70,7 @@ class _Sessionizer:
         self._gap = gap
         self._open_sessions: dict[int, _OpenSession] = {}
 
-    def step(self, row: sqlite3.Row, ts: datetime) -> _SessionEvent:
+    def step(self, row: MessageRow, ts: datetime) -> _SessionEvent:
         enb_id = row["enb_ue_s1ap_id"]
         current = self._open_sessions.get(enb_id)
         reuse = (
@@ -116,7 +116,7 @@ class _RuleRunner:
         self._states[session_id] = {r.name: {} for r in self.rules}
 
     def on_message(
-        self, session_id: int, row: sqlite3.Row
+        self, session_id: int, row: MessageRow
     ) -> Iterator[Alert]:
         states = self._states[session_id]
         for rule in self.rules:
@@ -178,7 +178,7 @@ def process_stream(
     rules = rules if rules is not None else ALL_RULES
     stats = Stats()
 
-    rows = conn.execute(
+    rows: list[MessageRow] = conn.execute(
         "SELECT * FROM messages WHERE session_id IS NULL"
         " ORDER BY ts, message_id"
     ).fetchall()
