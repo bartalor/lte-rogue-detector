@@ -30,7 +30,7 @@ Three components + a storage layer:
 
 2. **`detector/`** — Python package. Reads events from SQLite, groups them into per-UE sessions, applies pluggable detection rules, writes alerts back. CLI for historical runs and watch mode for live processing. Pytest tests.
 
-3. **`scenarios/`** — Bash + Python orchestration. Runs a scenario end-to-end (feed pcap → sniffer → detector → print verdict). Reproducible, self-contained.
+3. **`scenarios/`** — Bash + Python orchestration. Runs a scenario end-to-end (feed pcap → sniffer → detector → print verdict). Reproducible, self-contained. Consumes pcaps by path — does not stand up RF or core. (Generating fresh pcaps from a live srsRAN+Open5GS ZMQ stack is a separate repo, `~/my_dev/ran-testbed/`, whose output is just a pcap + meta JSON sidecar this project reads.)
 
 4. **`schema/`** — Versioned SQLite schema with migration script. Tables: `cells`, `sessions`, `messages`, `alerts`. Foreign keys enforced. Indexes on the columns the detection queries actually use (subscriber IDs, cell IDs, timestamps). `EXPLAIN QUERY PLAN` must show indexes being used.
 
@@ -51,7 +51,7 @@ Each rule produces an alert with: severity score, offending message reference, a
 
 ## Decisions already made
 
-- **No live srsRAN / Open5GS stack in the committed demo.** The detector is validated against (a) real published srsRAN attach pcaps for the legitimate baseline, and (b) crafted attack pcaps for the rogue scenarios. The scenario runner is structured so a live srsRAN ZMQ stack could be wired in later, but the committed demo runs from pcaps for reproducibility. This is framed as a *feature* (runs without setup), not a hedge. **Open option if time allows: build a local srsRAN + Open5GS ZMQ testbed and capture our own attack pcaps.**
+- **No live srsRAN / Open5GS stack in this repo.** The detector is validated against (a) real published srsRAN attach pcaps for the legitimate baseline, and (b) crafted attack pcaps for the rogue scenarios. The committed demo runs from pcaps for reproducibility — framed as a *feature* (runs without setup), not a hedge. A live testbed exists as a separate repo (`~/my_dev/ran-testbed/`, Open5GS 4G core + srsenb + srsue over ZMQ) that produces fresh pcaps + meta JSON; this project consumes those by path, no code coupling.
 - **Crafted pcaps use `pycrate`** (3GPP ASN.1 library) for wire-correct S1AP / NAS encoding. The project's contribution is the detector, not yet-another-S1AP-encoder.
 - **SQLite, not Postgres.** Single-file, embeddable from both C++ and Python, sufficient for the data volumes involved.
 - **Alembic for migrations.** Standard tool. Migrations are hand-written SQL via `op.execute()` / `op.create_table()`; no SQLAlchemy ORM models — the C++ sniffer writes the same DB directly via `sqlite3.h`, so an ORM would only be dead weight.
