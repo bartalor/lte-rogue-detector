@@ -1,0 +1,21 @@
+{
+  "name": "rogue_imsi_cleartext",
+  "scenario": "imsi_requested_in_cleartext_with_valid_guti",
+  "plmn": {
+    "mcc": "001",
+    "mnc": "01"
+  },
+  "tac": 1,
+  "imsi": "001010123456789",
+  "guti": {
+    "mmegi": 1,
+    "mmec": 1,
+    "m_tmsi": "0xc0decafe"
+  },
+  "messages": [
+    "AttachRequest(GUTI)",
+    "IdentityRequest(IMSI)",
+    "IdentityResponse(IMSI)"
+  ],
+  "crafted_with": "pycrate (S1AP+NAS+IEs) + scapy (SCTP/IP)"
+}
