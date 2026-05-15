@@ -1,0 +1,15 @@
+{
+  "name": "legit_attach",
+  "timestamp": "20260515-184709",
+  "attached": true,
+  "plmn": {
+    "mcc": "001",
+    "mnc": "01"
+  },
+  "imsi": "001010123456789",
+  "srsran_ref": "release_23_11",
+  "open5gs_version": "2.7.7~noble",
+  "mongo_version": "7.0",
+  "kernel": "6.8.0-111-generic",
+  "pcap_size_bytes": 4086
+}
