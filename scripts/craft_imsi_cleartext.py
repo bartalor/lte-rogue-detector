@@ -78,30 +78,30 @@ def _imsi_mobile_id_bytes() -> bytes:
 
 
 # ---------- NAS messages ----------
+#
+# All three NAS messages are pure field-assignment: pick the right pycrate
+# class, set values on V fields, serialise. No per-message logic, so one
+# dispatcher with the message class registry is enough. The per-message
+# TS 24.301 references live at the call sites in craft() where a reader
+# wants them.
 
-def build_attach_request_nas() -> bytes:
-    """NAS Attach Request with mobile identity = GUTI (TS 24.301 §8.2.4)."""
-    msg = EMMAttachRequest()
-    msg["NAS_KSI"]["V"].set_val(7)
-    msg["EPSAttachType"]["V"].set_val(1)  # 1 = EPS attach
-    msg["EPSID"]["V"].set_val(_guti_eps_id_bytes())
-    msg["UENetCap"]["V"].set_val(b"\xe0\xe0")  # EEA0/1/2 + EIA0/1/2 advertised
-    # Minimal ESM container; the detector doesn't inspect it.
-    msg["ESMContainer"]["V"].set_val(b"\x00\x00\x00")
-    return msg.to_bytes()
-
-
-def build_identity_request_nas() -> bytes:
-    """NAS Identity Request asking for the IMSI (TS 24.301 §8.2.18)."""
-    msg = EMMIdentityRequest()
-    msg["IDType"]["V"].set_val(1)  # 1 = IMSI
-    return msg.to_bytes()
+_NAS_CLASSES = {
+    "AttachRequest":    EMMAttachRequest,
+    "IdentityRequest":  EMMIdentityRequest,
+    "IdentityResponse": EMMIdentityResponse,
+}
 
 
-def build_identity_response_nas() -> bytes:
-    """NAS Identity Response with the IMSI in cleartext (TS 24.301 §8.2.19)."""
-    msg = EMMIdentityResponse()
-    msg["ID"]["V"].set_val(_imsi_mobile_id_bytes())
+def build_nas(msg_type: str, **fields) -> bytes:
+    """Build a NAS message of the given type with the given IE values.
+
+    `fields` keys are pycrate IE names (e.g. NAS_KSI, EPSID, IDType, ID);
+    values are passed to that IE's V field. KeyError from pycrate if a
+    field name doesn't exist on the chosen message type.
+    """
+    msg = _NAS_CLASSES[msg_type]()
+    for name, val in fields.items():
+        msg[name]["V"].set_val(val)
     return msg.to_bytes()
 
 
@@ -188,9 +188,20 @@ def _frame(src_ip: str, dst_ip: str, sport: int, dport: int, s1ap_bytes: bytes,
 
 
 def craft(out_dir: Path) -> Path:
-    attach_nas = build_attach_request_nas()
-    idreq_nas = build_identity_request_nas()
-    idresp_nas = build_identity_response_nas()
+    # NAS Attach Request, mobile identity = GUTI (TS 24.301 §8.2.4).
+    attach_nas = build_nas(
+        "AttachRequest",
+        NAS_KSI=7,
+        EPSAttachType=1,                # 1 = EPS attach
+        EPSID=_guti_eps_id_bytes(),
+        UENetCap=b"\xe0\xe0",           # EEA0/1/2 + EIA0/1/2 advertised
+        ESMContainer=b"\x00\x00\x00",   # placeholder; detector doesn't inspect
+    )
+    # NAS Identity Request, ID type = IMSI (TS 24.301 §8.2.18). The rogue
+    # smoking gun: a legitimate MME with a known GUTI never asks for IMSI.
+    idreq_nas = build_nas("IdentityRequest", IDType=1)
+    # NAS Identity Response, IMSI in cleartext (TS 24.301 §8.2.19).
+    idresp_nas = build_nas("IdentityResponse", ID=_imsi_mobile_id_bytes())
 
     p1 = _frame(ENB_IP, MME_IP, SCTP_SPORT, SCTP_DPORT, _initial_ue_message(attach_nas), tsn=1, stream_seq=0)
     p2 = _frame(MME_IP, ENB_IP, SCTP_DPORT, SCTP_SPORT, _dl_nas_transport(idreq_nas), tsn=1, stream_seq=0)
