@@ -203,19 +203,19 @@ def craft(out_dir: Path) -> Path:
     # NAS Identity Response, IMSI in cleartext (TS 24.301 §8.2.19).
     idresp_nas = build_nas("IdentityResponse", ID=_imsi_mobile_id_bytes())
 
-    p1 = _frame(ENB_IP, MME_IP, SCTP_SPORT, SCTP_DPORT, _initial_ue_message(attach_nas), tsn=1, stream_seq=0)
-    p2 = _frame(MME_IP, ENB_IP, SCTP_DPORT, SCTP_SPORT, _dl_nas_transport(idreq_nas), tsn=1, stream_seq=0)
-    p3 = _frame(ENB_IP, MME_IP, SCTP_SPORT, SCTP_DPORT, _ul_nas_transport(idresp_nas), tsn=2, stream_seq=1)
-
+    packets = [
+        _frame(ENB_IP, MME_IP, SCTP_SPORT, SCTP_DPORT, _initial_ue_message(attach_nas), tsn=1, stream_seq=0),
+        _frame(MME_IP, ENB_IP, SCTP_DPORT, SCTP_SPORT, _dl_nas_transport(idreq_nas),    tsn=1, stream_seq=0),
+        _frame(ENB_IP, MME_IP, SCTP_SPORT, SCTP_DPORT, _ul_nas_transport(idresp_nas),   tsn=2, stream_seq=1),
+    ]
     t0 = dt.datetime.now().timestamp()
-    p1.time = t0
-    p2.time = t0 + 0.020
-    p3.time = t0 + 0.040
+    for i, pkt in enumerate(packets):
+        pkt.time = t0 + 0.020 * i
 
     out_dir.mkdir(parents=True, exist_ok=True)
     pcap = out_dir / "rogue_imsi_cleartext.pcap"
     meta = out_dir / "rogue_imsi_cleartext.json"
-    wrpcap(str(pcap), [p1, p2, p3])
+    wrpcap(str(pcap), packets)
 
     meta.write_text(json.dumps({
         "name": "rogue_imsi_cleartext",
