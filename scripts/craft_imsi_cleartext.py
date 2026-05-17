@@ -37,6 +37,8 @@ from pycrate_mobile.TS24301_EMM import (
 from pycrate_mobile.TS24301_IE import EPSID, IDTYPE_GUTI, IDTYPE_IMSI
 from scapy.all import Ether, IP, SCTP, SCTPChunkData, wrpcap
 
+from lte_rogue_detector.nas_types import NasType
+
 
 ENB_IP = "127.0.0.1"
 MME_IP = "127.0.0.2"
@@ -86,13 +88,13 @@ def _imsi_mobile_id_bytes() -> bytes:
 # wants them.
 
 _NAS_CLASSES = {
-    "AttachRequest":    EMMAttachRequest,
-    "IdentityRequest":  EMMIdentityRequest,
-    "IdentityResponse": EMMIdentityResponse,
+    NasType.AttachRequest:    EMMAttachRequest,
+    NasType.IdentityRequest:  EMMIdentityRequest,
+    NasType.IdentityResponse: EMMIdentityResponse,
 }
 
 
-def build_nas(msg_type: str, **fields) -> bytes:
+def build_nas(msg_type: NasType, **fields) -> bytes:
     """Build a NAS message of the given type with the given IE values.
 
     `fields` keys are pycrate IE names (e.g. NAS_KSI, EPSID, IDType, ID);
@@ -190,7 +192,7 @@ def _frame(src_ip: str, dst_ip: str, sport: int, dport: int, s1ap_bytes: bytes,
 def craft(out_dir: Path) -> Path:
     # NAS Attach Request, mobile identity = GUTI (TS 24.301 §8.2.4).
     attach_nas = build_nas(
-        "AttachRequest",
+        NasType.AttachRequest,
         NAS_KSI=7,
         EPSAttachType=1,                # 1 = EPS attach
         EPSID=_guti_eps_id_bytes(),
@@ -199,9 +201,9 @@ def craft(out_dir: Path) -> Path:
     )
     # NAS Identity Request, ID type = IMSI (TS 24.301 §8.2.18). The rogue
     # smoking gun: a legitimate MME with a known GUTI never asks for IMSI.
-    idreq_nas = build_nas("IdentityRequest", IDType=1)
+    idreq_nas = build_nas(NasType.IdentityRequest, IDType=1)
     # NAS Identity Response, IMSI in cleartext (TS 24.301 §8.2.19).
-    idresp_nas = build_nas("IdentityResponse", ID=_imsi_mobile_id_bytes())
+    idresp_nas = build_nas(NasType.IdentityResponse, ID=_imsi_mobile_id_bytes())
 
     packets = [
         _frame(ENB_IP, MME_IP, SCTP_SPORT, SCTP_DPORT, _initial_ue_message(attach_nas), tsn=1, stream_seq=0),

@@ -21,6 +21,7 @@ follow-up rule that correlates across sessions can promote it to high.
 import sqlite3
 from typing import Any, Iterable
 
+from ..nas_types import NasType
 from .base import Alert
 
 
@@ -31,7 +32,7 @@ class ImsiCleartextWithGutiRule:
     def observe(
         self, msg: sqlite3.Row, state: dict[str, Any]
     ) -> Iterable[Alert]:
-        if msg["nas_msg_type"] != "AttachRequest":
+        if msg["nas_msg_type"] != NasType.AttachRequest:
             return
         if state.get("fired"):
             return

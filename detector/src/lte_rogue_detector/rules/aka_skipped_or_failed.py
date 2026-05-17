@@ -28,13 +28,14 @@ disclosure (rule 1, severity 5), which has benign explanations.
 import sqlite3
 from typing import Any, Iterable
 
+from ..nas_types import NasType
 from .base import Alert
 
 
 # NAS messages that mark "the procedure moved past authentication".
 # If we see one of these in a session without a completed AKA exchange
 # preceding it, AKA was effectively skipped.
-_POST_AUTH = {"SecurityModeCommand", "AttachAccept"}
+_POST_AUTH = {NasType.SecurityModeCommand, NasType.AttachAccept}
 
 
 class AkaSkippedOrFailedRule:
@@ -49,7 +50,7 @@ class AkaSkippedOrFailedRule:
 
         t = msg["nas_msg_type"]
 
-        if t == "AttachRequest":
+        if t == NasType.AttachRequest:
             state["attach_seen"] = True
             return
 
@@ -58,12 +59,12 @@ class AkaSkippedOrFailedRule:
         if not state.get("attach_seen"):
             return
 
-        if t == "AuthenticationRequest":
+        if t == NasType.AuthenticationRequest:
             state["auth_req"] = msg
             state["auth_completed"] = False
             state["auth_failure_msg"] = None
             return
-        if t == "AuthenticationResponse" and state.get("auth_req") is not None:
+        if t == NasType.AuthenticationResponse and state.get("auth_req") is not None:
             state["auth_completed"] = True
             return
         if t == "AuthenticationFailure" and state.get("auth_req") is not None:
