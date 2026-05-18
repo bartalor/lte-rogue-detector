@@ -13,8 +13,32 @@ const char* kInsertSql =
     "INSERT INTO messages ("
     " ts, direction, nas_msg_type,"
     " identity_type, eea_selected, eia_selected, ue_eea_caps, ue_eia_caps,"
-    " emm_cause, enb_ue_s1ap_id, mme_ue_s1ap_id"
-    ") VALUES (?,?,?,?,?,?,?,?,?,?,?)";
+    " emm_cause, enb_ue_s1ap_id, mme_ue_s1ap_id, plmn, cell_id"
+    ") VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)";
+
+// Decode the 3 BCD octets of TS 24.008 §10.5.1.3 PLMN identity into the
+// canonical "MCC" + "MNC" digit string ("00101" for MCC=001, MNC=01).
+// Byte layout: [MCC2|MCC1] [MNC3|MCC3] [MNC2|MNC1]. MNC3 = 0xF marks a
+// 2-digit MNC (filler).
+std::string plmn_bcd_to_string(const std::array<std::uint8_t, 3>& b) {
+    auto digit = [](std::uint8_t nib) -> char {
+        return (nib <= 9) ? static_cast<char>('0' + nib) : '?';
+    };
+    const std::uint8_t mcc1 = b[0] & 0x0f;
+    const std::uint8_t mcc2 = b[0] >> 4;
+    const std::uint8_t mcc3 = b[1] & 0x0f;
+    const std::uint8_t mnc1 = b[2] & 0x0f;
+    const std::uint8_t mnc2 = b[2] >> 4;
+    const std::uint8_t mnc3 = b[1] >> 4;
+    std::string out;
+    out.push_back(digit(mcc1));
+    out.push_back(digit(mcc2));
+    out.push_back(digit(mcc3));
+    out.push_back(digit(mnc1));
+    out.push_back(digit(mnc2));
+    if (mnc3 != 0x0f) out.push_back(digit(mnc3));
+    return out;
+}
 
 const char* nas_msg_type_str(NasMessageType t) {
     switch (t) {
@@ -167,6 +191,15 @@ void Db::insert_message(const ExtractedFields& f) {
     bind_opt_u8(st, 9, f.nas.emm_cause);
     bind_opt_int(st, 10, f.enb_ue_s1ap_id);
     bind_opt_int(st, 11, f.mme_ue_s1ap_id);
+
+    std::string plmn_str;
+    if (f.plmn_bcd) {
+        plmn_str = plmn_bcd_to_string(*f.plmn_bcd);
+        bind_text(st, 12, plmn_str);
+    } else {
+        sqlite3_bind_null(st, 12);
+    }
+    bind_opt_int(st, 13, f.cell_id);
 
     if (sqlite3_step(st) != SQLITE_DONE) {
         throw std::runtime_error(

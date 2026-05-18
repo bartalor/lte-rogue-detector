@@ -37,6 +37,8 @@ def insert_message(
     nas_msg_type: str,
     enb_ue_s1ap_id: int | None,
     mme_ue_s1ap_id: int | None = None,
+    plmn: str | None = None,
+    cell_id: int | None = None,
     identity_type: str | None = None,
     eea_selected: int | None = None,
     eia_selected: int | None = None,
@@ -47,12 +49,12 @@ def insert_message(
     cur = conn.execute(
         "INSERT INTO messages (ts, direction, nas_msg_type, identity_type,"
         " eea_selected, eia_selected, ue_eea_caps, ue_eia_caps, emm_cause,"
-        " enb_ue_s1ap_id, mme_ue_s1ap_id)"
-        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+        " enb_ue_s1ap_id, mme_ue_s1ap_id, plmn, cell_id)"
+        " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
         (
             ts, direction, nas_msg_type, identity_type,
             eea_selected, eia_selected, ue_eea_caps, ue_eia_caps, emm_cause,
-            enb_ue_s1ap_id, mme_ue_s1ap_id,
+            enb_ue_s1ap_id, mme_ue_s1ap_id, plmn, cell_id,
         ),
     )
     return cur.lastrowid

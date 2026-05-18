@@ -15,6 +15,7 @@ constexpr std::uint32_t kProcUplinkNASTransport = 13;
 constexpr std::uint32_t kIeMmeUeS1apId = 0;
 constexpr std::uint32_t kIeEnbUeS1apId = 8;
 constexpr std::uint32_t kIeNasPdu = 26;
+constexpr std::uint32_t kIeEutranCgi = 100;
 
 // S1AP-PDU is a CHOICE of {initiatingMessage, successfulOutcome,
 // unsuccessfulOutcome, ...}. We only handle initiatingMessage.
@@ -69,6 +70,31 @@ std::uint32_t decode_ue_s1ap_id(ByteSpan v) {
     return out;
 }
 
+// EUTRAN-CGI ::= SEQUENCE { pLMNidentity OCTET STRING (SIZE(3)),
+//                           cell-ID BIT STRING (SIZE(28)),
+//                           iE-Extensions ... OPTIONAL }
+// APER encoding (no optionals set, no extensions): 1 extension marker bit,
+// align, then 3 PLMN octets, then a 28-bit BIT STRING. A fixed-size BIT
+// STRING > 16 bits is byte-aligned and stored MSB-first within bytes; the
+// 28 bits occupy the high 28 bits of a 4-byte block, with the low 4 bits
+// being padding to the next byte boundary.
+//
+// Empirically (pycrate-encoded test vector): the entire IE value occupies
+// 8 octets: 0x00 0xPP 0xPP 0xPP 0xCC 0xCC 0xCC 0xC_  where the trailing
+// nibble is padding.
+void decode_eutran_cgi(ByteSpan v, S1apPeel& peel) {
+    if (v.len < 8) return;
+    // v.data[0] is the SEQUENCE extension marker byte (top bit) plus padding.
+    std::array<std::uint8_t, 3> plmn{v.data[1], v.data[2], v.data[3]};
+    const std::uint32_t cell32 =
+        (static_cast<std::uint32_t>(v.data[4]) << 24) |
+        (static_cast<std::uint32_t>(v.data[5]) << 16) |
+        (static_cast<std::uint32_t>(v.data[6]) << 8) |
+        static_cast<std::uint32_t>(v.data[7]);
+    peel.plmn = plmn;
+    peel.cell_id = (cell32 >> 4) & 0x0fffffffu;
+}
+
 void parse_ie(std::uint32_t ie_id, ByteSpan value, S1apPeel& peel) {
     switch (ie_id) {
         case kIeMmeUeS1apId:
@@ -79,6 +105,9 @@ void parse_ie(std::uint32_t ie_id, ByteSpan value, S1apPeel& peel) {
             break;
         case kIeNasPdu:
             peel.nas_pdu = value;
+            break;
+        case kIeEutranCgi:
+            decode_eutran_cgi(value, peel);
             break;
         default:
             break;

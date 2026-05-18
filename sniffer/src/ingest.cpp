@@ -26,6 +26,8 @@ void emit_s1ap(const S1apPeel& peel, std::uint64_t ts_us,
     f.s1ap_procedure_code = peel.procedure_code;
     f.enb_ue_s1ap_id = peel.enb_ue_s1ap_id;
     f.mme_ue_s1ap_id = peel.mme_ue_s1ap_id;
+    f.cell_id = peel.cell_id;
+    f.plmn_bcd = peel.plmn;
     f.nas = *nas;
     out.push_back(std::move(f));
 }

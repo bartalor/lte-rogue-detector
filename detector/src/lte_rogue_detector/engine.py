@@ -33,13 +33,25 @@ class Stats:
     sessions_created: int = 0
     messages_assigned: int = 0
     messages_skipped_no_enb_id: int = 0
+    messages_skipped_ambiguous_cell: int = 0
     alerts_inserted: int = 0
+
+
+# A session key. cell identity (PLMN + 28-bit Cell ID) plus the per-eNB
+# enb_ue_s1ap_id is what S1AP needs to uniquely identify a UE context:
+# enb_ue_s1ap_id is only unique within an eNB (TS 36.413), so keying on it
+# alone collapses two cells that happen to allocate the same value.
+class _SessionKey(NamedTuple):
+    plmn: str | None
+    cell_id: int | None
+    enb_ue_s1ap_id: int
 
 
 class _OpenSession(NamedTuple):
     session_id: int
     last_ts: datetime
     closed_by_detach: bool
+    mme_ue_s1ap_id: int | None
 
 
 class _SessionEvent(NamedTuple):
@@ -47,11 +59,13 @@ class _SessionEvent(NamedTuple):
 
     `closed_id` is set if a previously-open session was closed to make
     room. `session_id` is the session this row belongs to. `opened` is
-    True when `session_id` was newly created.
+    True when `session_id` was newly created. `ambiguous` is True if a
+    downlink row could not be matched to exactly one open session.
     """
-    session_id: int
+    session_id: int | None
     closed_id: int | None
     opened: bool
+    ambiguous: bool = False
 
 
 def _parse_ts(ts: str) -> datetime:
@@ -63,16 +77,62 @@ def _format_ts(t: datetime) -> str:
 
 
 class _Sessionizer:
-    """Per-eNB session lifecycle. Inserts `sessions` rows as they open."""
+    """Per-(cell, eNB-UE-ID) session lifecycle.
+
+    Uplink rows arrive with a cell identity (EUTRAN-CGI is mandatory on
+    InitialUEMessage and UplinkNASTransport) — those go straight into the
+    open-sessions map keyed by (plmn, cell_id, enb_ue_s1ap_id).
+
+    Downlink rows (DownlinkNASTransport) have no cell IE on the wire. We
+    resolve them against open sessions sharing the same enb_ue_s1ap_id:
+        - if mme_ue_s1ap_id is set on the row and any open session has
+          the matching mme_ue_s1ap_id, use that;
+        - else if there is exactly one open session with that enb_id,
+          use it;
+        - else the row is ambiguous and gets skipped.
+    """
 
     def __init__(self, conn: sqlite3.Connection, gap: timedelta) -> None:
         self._conn = conn
         self._gap = gap
-        self._open_sessions: dict[int, _OpenSession] = {}
+        self._open_sessions: dict[_SessionKey, _OpenSession] = {}
+
+    def _resolve_key(self, row: MessageRow) -> _SessionKey | None:
+        """Pick the open-session key this row belongs to, or None if ambiguous.
+
+        An uplink row always identifies its own key directly. A downlink
+        row (no cell IE on the wire) identifies a key by matching against
+        currently-open sessions sharing its enb_ue_s1ap_id, disambiguating
+        via mme_ue_s1ap_id when more than one is open.
+        """
+        enb_id = row["enb_ue_s1ap_id"]
+        if row["cell_id"] is not None:
+            return _SessionKey(row["plmn"], row["cell_id"], enb_id)
+
+        candidates = [k for k in self._open_sessions if k.enb_ue_s1ap_id == enb_id]
+        if not candidates:
+            # No open session to attach to. A downlink-only row with no
+            # prior uplink can't be placed; record it as its own key with
+            # NULL cell so a subsequent uplink in the same UE context can
+            # still be sessionized separately. This also covers messages
+            # from a sniffer that couldn't extract EUTRAN-CGI.
+            return _SessionKey(row["plmn"], row["cell_id"], enb_id)
+        mme_id = row["mme_ue_s1ap_id"]
+        if mme_id is not None:
+            by_mme = [k for k in candidates
+                      if self._open_sessions[k].mme_ue_s1ap_id == mme_id]
+            if len(by_mme) == 1:
+                return by_mme[0]
+        if len(candidates) == 1:
+            return candidates[0]
+        return None
 
     def step(self, row: MessageRow, ts: datetime) -> _SessionEvent:
-        enb_id = row["enb_ue_s1ap_id"]
-        current = self._open_sessions.get(enb_id)
+        key = self._resolve_key(row)
+        if key is None:
+            return _SessionEvent(None, None, False, ambiguous=True)
+
+        current = self._open_sessions.get(key)
         reuse = (
             current is not None
             and not current.closed_by_detach
@@ -82,21 +142,32 @@ class _Sessionizer:
         closed_id: int | None = None
         if current is not None and not reuse:
             closed_id = current.session_id
-            del self._open_sessions[enb_id]
+            del self._open_sessions[key]
 
         if reuse:
             session_id = current.session_id
             opened = False
+            # Latch mme_ue_s1ap_id the first time we see it, so future
+            # downlinks can disambiguate via it.
+            mme_id = current.mme_ue_s1ap_id
+            if mme_id is None and row["mme_ue_s1ap_id"] is not None:
+                mme_id = row["mme_ue_s1ap_id"]
         else:
             cur = self._conn.execute(
-                "INSERT INTO sessions (enb_ue_s1ap_id, started_at) VALUES (?, ?)",
-                (enb_id, row["ts"]),
+                "INSERT INTO sessions"
+                " (plmn, cell_id, enb_ue_s1ap_id, mme_ue_s1ap_id, started_at)"
+                " VALUES (?, ?, ?, ?, ?)",
+                (key.plmn, key.cell_id, key.enb_ue_s1ap_id,
+                 row["mme_ue_s1ap_id"], row["ts"]),
             )
             session_id = cur.lastrowid
             opened = True
+            mme_id = row["mme_ue_s1ap_id"]
 
         closed_by_detach = row["nas_msg_type"] == "DetachRequest"
-        self._open_sessions[enb_id] = _OpenSession(session_id, ts, closed_by_detach)
+        self._open_sessions[key] = _OpenSession(
+            session_id, ts, closed_by_detach, mme_id
+        )
         return _SessionEvent(session_id, closed_id, opened)
 
     def drain(self) -> list[int]:
@@ -197,6 +268,9 @@ def process_stream(
 
             ts = _parse_ts(row["ts"])
             event = sessionizer.step(row, ts)
+            if event.ambiguous:
+                stats.messages_skipped_ambiguous_cell += 1
+                continue
 
             if event.closed_id is not None:
                 writer.add_alerts(event.closed_id, runner.on_close(event.closed_id))

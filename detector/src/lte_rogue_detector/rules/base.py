@@ -17,6 +17,9 @@ class MessageRow(TypedDict):
     direction: str
     nas_msg_type: str
     enb_ue_s1ap_id: int | None
+    mme_ue_s1ap_id: int | None
+    plmn: str | None
+    cell_id: int | None
     identity_type: str | None
     eea_selected: int | None
     eia_selected: int | None

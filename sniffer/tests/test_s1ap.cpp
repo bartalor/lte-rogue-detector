@@ -71,6 +71,32 @@ std::vector<std::uint8_t> encode_int_ie(std::uint16_t ie_id, std::uint32_t value
     return w.data();
 }
 
+// Encode an EUTRAN-CGI IE (id 100) carrying a fixed 8-byte value:
+//   0x00  -- SEQUENCE extension marker (top bit) + 7 pad bits, byte-aligned
+//   3 PLMN octets
+//   4 octets holding the 28-bit cell-ID left-aligned (low 4 bits padding)
+// The wrapping ProtocolIE-Field encoding is: id(16) crit(2) length(LV) octets.
+std::vector<std::uint8_t> encode_eutran_cgi_ie(
+    std::uint8_t plmn0, std::uint8_t plmn1, std::uint8_t plmn2,
+    std::uint32_t cell_id_28) {
+    BitWriter w;
+    w.put_u16_be(100);  // EUTRAN-CGI
+    w.put_bits(0, 2);   // criticality: ignore
+    std::vector<std::uint8_t> open;
+    open.push_back(0x00);
+    open.push_back(plmn0);
+    open.push_back(plmn1);
+    open.push_back(plmn2);
+    const std::uint32_t shifted = (cell_id_28 & 0x0fffffffu) << 4;
+    open.push_back(static_cast<std::uint8_t>((shifted >> 24) & 0xff));
+    open.push_back(static_cast<std::uint8_t>((shifted >> 16) & 0xff));
+    open.push_back(static_cast<std::uint8_t>((shifted >> 8) & 0xff));
+    open.push_back(static_cast<std::uint8_t>(shifted & 0xff));
+    w.put_len_short(static_cast<std::uint32_t>(open.size()));
+    w.put_octets(open);
+    return w.data();
+}
+
 std::vector<std::uint8_t> encode_nas_ie(const std::vector<std::uint8_t>& nas) {
     BitWriter w;
     w.put_u16_be(26);  // NAS-PDU
@@ -163,6 +189,36 @@ TEST(S1ap, MissingNasPduReturnsNullopt) {
     auto pdu = encode_initiating_message(12, {encode_int_ie(8, 1, 1)});
     auto peel = peel_s1ap(ByteSpan{pdu.data(), pdu.size()});
     EXPECT_FALSE(peel.has_value());
+}
+
+TEST(S1ap, InitialUEMessageExtractsEutranCgi) {
+    const std::vector<std::uint8_t> nas = {0x07, 0x41, 0x71};
+    auto pdu = encode_initiating_message(
+        12,
+        {encode_int_ie(8, 0x123456, 3),
+         encode_nas_ie(nas),
+         encode_eutran_cgi_ie(0x00, 0xf1, 0x10, 0x019B)});
+    auto peel = peel_s1ap(ByteSpan{pdu.data(), pdu.size()});
+    ASSERT_TRUE(peel.has_value());
+    ASSERT_TRUE(peel->cell_id.has_value());
+    EXPECT_EQ(*peel->cell_id, 0x019Bu);
+    ASSERT_TRUE(peel->plmn.has_value());
+    EXPECT_EQ((*peel->plmn)[0], 0x00);
+    EXPECT_EQ((*peel->plmn)[1], 0xf1);
+    EXPECT_EQ((*peel->plmn)[2], 0x10);
+}
+
+TEST(S1ap, DownlinkNASTransportHasNoCellInfo) {
+    const std::vector<std::uint8_t> nas = {0x27, 0x00};
+    auto pdu = encode_initiating_message(
+        11,
+        {encode_int_ie(0, 0xdeadbeef, 4),
+         encode_int_ie(8, 0x7fffff, 3),
+         encode_nas_ie(nas)});
+    auto peel = peel_s1ap(ByteSpan{pdu.data(), pdu.size()});
+    ASSERT_TRUE(peel.has_value());
+    EXPECT_FALSE(peel->cell_id.has_value());
+    EXPECT_FALSE(peel->plmn.has_value());
 }
 
 TEST(S1ap, TruncatedPduIsSafe) {

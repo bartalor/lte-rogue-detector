@@ -1,5 +1,6 @@
 #pragma once
 
+#include <array>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -57,9 +58,9 @@ struct ExtractedFields {
     std::optional<std::uint32_t> enb_ue_s1ap_id;
     std::optional<std::uint32_t> mme_ue_s1ap_id;
     std::optional<std::uint32_t> s1ap_procedure_code;
-    std::optional<std::uint32_t> enb_id;
+    std::optional<std::uint32_t> cell_id;          // 28-bit Cell Identity
+    std::optional<std::array<std::uint8_t, 3>> plmn_bcd;  // 3 BCD bytes
     std::optional<std::uint32_t> tac;
-    std::optional<std::string> plmn;
     DecodedNasMessage nas;
     std::uint64_t ts_us{0};
 };

@@ -3,6 +3,7 @@
 #include "framing.hpp"
 #include "types.hpp"
 
+#include <array>
 #include <optional>
 
 namespace sniffer {
@@ -15,6 +16,12 @@ struct S1apPeel {
     std::uint32_t procedure_code{0};
     std::optional<std::uint32_t> enb_ue_s1ap_id;
     std::optional<std::uint32_t> mme_ue_s1ap_id;
+    // EUTRAN-CGI: PLMN as the 3 BCD-encoded bytes on the wire (MCC/MNC-MNC
+    // packed per TS 24.008 §10.5.1.3) and the 28-bit Cell Identity. Present
+    // on InitialUEMessage and UplinkNASTransport; absent on
+    // DownlinkNASTransport.
+    std::optional<std::array<std::uint8_t, 3>> plmn;
+    std::optional<std::uint32_t> cell_id;
     ByteSpan nas_pdu{};
 };
 
